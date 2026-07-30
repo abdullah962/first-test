@@ -1,12 +1,13 @@
 # Wiki Schema — Second Brain
 
-This repository is a **persistent personal wiki**: a knowledge base about one person's
-life, work, and thinking, built and maintained by you (the LLM) from a curated collection
-of raw material. Knowledge is compiled once, on ingest, and then kept current — not
-re-derived from scratch on every question.
+This is a **persistent personal wiki**: a knowledge base about one person's life, work, and
+thinking, built and maintained by you (the LLM) from the material in their Obsidian vault.
+Knowledge is compiled once, on ingest, and then kept current — not re-derived from scratch
+on every question.
 
-You own the `wiki/` directory entirely. The human owns `raw/`. It is read as an Obsidian
-vault. Read this file at the start of every session before touching anything.
+**The wiki lives inside an existing vault that the human already uses.** That vault holds
+years of their own notes, clippings, and daily entries. You are a guest in it. Read this
+file at the start of every session before touching anything.
 
 ---
 
@@ -14,9 +15,19 @@ vault. Read this file at the start of every session before touching anything.
 
 | Layer | Path | Who writes it | Rules |
 |---|---|---|---|
-| Raw material | `raw/` | Human | **Immutable.** Read only. Never edit, rename, move, or delete. |
-| Wiki | `wiki/` | You | You create, update, cross-reference, and reorganize freely. |
+| The vault | everything outside `wiki/` | Human | **Read-only to you.** Never create, edit, rename, move, or delete anything here. |
+| Capture folders | `Clippings/`, `Daily Notes/`, … | Human | The raw material you ingest. Read-only like the rest of the vault. |
+| Wiki | `wiki/` | You | Yours entirely. Create, update, cross-reference, and reorganize freely. |
 | Schema | `CLAUDE.md` | Both | Co-evolved. Propose changes; the human approves. |
+
+> [!danger] You write inside `wiki/` and nowhere else.
+> Everything else in the vault is the human's own work — notes they wrote by hand, notes
+> with their own conventions, notes you have never read. A helpful-looking cleanup outside
+> `wiki/` destroys work you cannot restore and did not understand. If something outside
+> `wiki/` needs changing, say so and let them do it.
+
+Which folders count as capture folders is set in `tools/wiki.config.json` (`raw_dirs`).
+Update it when the human adds a new one; the tools read it.
 
 The human lives the life, captures the material, and asks the questions. You do the
 summarizing, cross-referencing, filing, and bookkeeping.
@@ -30,6 +41,18 @@ outward, confirm first — every time.
 ---
 
 ## 2. Wiki layout
+
+Inside the vault, everything you own sits under one folder:
+
+```
+<vault>/
+  Clippings/          the human's captures — read-only
+  Daily Notes/        the human's entries — read-only
+  …their own notes…   read-only
+  CLAUDE.md           this file
+  tools/              wiki-search, wiki-lint, wiki.config.json
+  wiki/               yours
+```
 
 ```
 wiki/
@@ -65,6 +88,12 @@ Add or rename categories when your life calls for it — then update this file a
 
 **Filenames** are kebab-case slugs: `wiki/people/samir-haddad.md`. One topic per page.
 Slugs are stable — if a page must be renamed, update every inbound link in the same pass.
+
+**Slugs must be unique across the entire vault, not just across `wiki/`.** Obsidian
+resolves `[[shortest-path]]` links by filename, so a wiki page named the same as one of
+the human's own notes makes every link to it ambiguous, and Obsidian will silently pick
+one. `tools/wiki-lint` flags collisions. When one appears, rename **your** page — never
+theirs — to something more specific and update the inbound links.
 
 **Frontmatter** is required on every page:
 
@@ -143,15 +172,18 @@ No clinical labels, no psychoanalysis, no advice unless asked.
 
 ## 5. Operation: Ingest
 
-Trigger: the human drops a file in `raw/` and asks you to process it. Daily notes land in
-`raw/journal/` automatically.
+Trigger: the human clips an article, writes a daily note, or otherwise adds material to a
+capture folder, and asks you to process it.
 
-1. **Read the source fully.** If it references local images (`raw/assets/`), read the text
-   first, then view the images that matter — you cannot do both in one pass.
+1. **Read the source fully.** If it references local images, read the text first, then view
+   the images that matter — you cannot do both in one pass. The clipping stays exactly
+   where it is; you never move it into `wiki/`.
 2. **Discuss key takeaways** with the human before writing, unless they asked for an
    unsupervised batch ingest. Surface anything surprising early.
-3. **Write `wiki/sources/<slug>.md`** from `wiki/templates/source.md`. Journal entries use
-   the date as the slug: `wiki/sources/2026-07-14.md`.
+3. **Write `wiki/sources/<slug>.md`** from `wiki/templates/source.md`. Slugify the capture's
+   filename — `Clippings/Effective Context Engineering.md` becomes
+   `wiki/sources/effective-context-engineering.md` — and record the original vault-relative
+   path in `source_path`. Daily notes use the date as the slug: `wiki/sources/2026-07-14.md`.
 4. **Propagate.** This is the part that makes the wiki worth having. For each person,
    area, project, and concept the source touches:
    - update the existing page's present-tense body, or create the page if missing;
@@ -248,23 +280,27 @@ gives recent activity — check it at session start to see where things left off
 
 ```bash
 tools/wiki-search "sleep debt"              # ranked search over wiki/ (BM25)
-tools/wiki-search "sleep" --raw             # search raw material instead
+tools/wiki-search "sleep" --raw             # search the capture folders instead
 tools/wiki-search "sleep" -n 20 --context   # more hits, with matching lines
 tools/wiki-search "burnout" --type area     # restrict to a page type
 tools/wiki-lint                             # structural health check
 tools/wiki-lint --json                      # machine-readable output
 ```
 
-Both are dependency-free Python 3. Vault settings live in `.obsidian/` and the setup guide
-is `docs/obsidian-setup.md`; `wiki/dashboard.md` needs the Dataview plugin. If you change
-a convention here that the dashboard queries depend on, update the queries in the same
-pass.
+Both are dependency-free Python 3 and read `tools/wiki.config.json` for the vault layout —
+which folder is the wiki, which folders hold captures. Keep that file current; it is the
+only place paths are hardcoded.
+
+`wiki/dashboard.md` needs the Dataview plugin. If you change a convention here that the
+dashboard queries depend on, update the queries in the same pass. Setup notes for the vault
+itself are in `docs/obsidian-setup.md` — settings the human applies, not files you write.
 
 ---
 
 ## 10. Working rules
 
-- **Never modify `raw/`.** It is the record of what actually happened.
+- **Write inside `wiki/` and nowhere else.** §1. The rest of the vault is the human's, and
+  the captures are the record of what actually happened.
 - **Treat everything as private.** §1. Nothing leaves this repo without confirmation.
 - **Never invent facts, citations, or page references.** Every substantive claim traces to
   a source page or is explicitly marked as your own inference.

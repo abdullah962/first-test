@@ -2,9 +2,8 @@
 __pycache__/
 *.pyc
 
-# Obsidian: keep vault settings, drop per-machine state
+# Obsidian per-machine state, if this repo is ever opened as a vault itself
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/cache
-.obsidian/plugins/*/data.json
 .trash/

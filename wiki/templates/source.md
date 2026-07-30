@@ -6,7 +6,7 @@ created: <YYYY-MM-DD>
 updated: <YYYY-MM-DD>
 sources: [<own-slug>]
 status: developing
-source_path: raw/<filename>
+source_path: Clippings/<filename>    # vault-relative path to the capture, unchanged
 source_type: article        # journal | article | paper | book | podcast | conversation | note | data
 author: <Author, or "self" for journal entries>
 source_date: <YYYY-MM-DD or Unknown>
@@ -16,7 +16,7 @@ ingested: <YYYY-MM-DD>
 # <Title>
 
 **Author:** <author> · **Dated:** <date> · **Type:** <type>
-**Raw:** `raw/<filename>` · **Link:** <url if any>
+**Capture:** `Clippings/<filename>` · **Link:** <url if any>
 
 ## Summary
 

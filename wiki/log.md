@@ -43,3 +43,17 @@ three dated instances before it is stated as one. [[contradictions]] now registe
 of position alongside source conflicts. Linter gained folder/type matching and project
 `state` validation. Repository is public and must be made private before real material
 lands in `raw/`.
+
+## [2026-07-30] schema | Reworked to install into an existing vault
+
+**Removed:** `raw/`, `.obsidian/` — the vault already exists and already has both
+**Created:** `tools/wiki.config.json`
+**Updated:** `CLAUDE.md`, [[overview]], `tools/wiki-lint`, `tools/wiki-search`,
+`docs/obsidian-setup.md`, `README.md`, source template
+**Notes:** The wiki is now a guest in a vault in active use rather than a vault of its own.
+Hard rule added: write inside `wiki/`, read everywhere, modify nothing else. Capture
+folders (`Clippings/`, `Daily Notes/`) replace `raw/` and are named in the config rather
+than hardcoded. Slugs must now be unique across the whole vault, not just `wiki/`, because
+Obsidian resolves links by filename — the linter checks this and the rule is that our page
+gets renamed, never theirs. `source_path` is vault-relative and its absence is only a note,
+since the wiki may be checked out away from the material.

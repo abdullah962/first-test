@@ -15,13 +15,16 @@ needs attention.
 
 ## What this is
 
-A second brain: a personal knowledge base built from journal entries, articles, book and
-podcast notes, and conversations. The material lives in `raw/` and never changes. The
-agent reads it and maintains everything under `wiki/` — pages on the people, areas,
-projects, and ideas that make up a life, kept current rather than piled up.
+A second brain: a personal knowledge base built from clipped articles, daily notes, book
+and podcast notes, and conversations. That material lives in the vault's capture folders
+and is never changed. The agent reads it and maintains everything under `wiki/` — pages on
+the people, areas, projects, and ideas that make up a life, kept current rather than piled
+up.
 
-It is meant to be read in Obsidian: follow the links, watch the graph, check
-[[dashboard]].
+This wiki is a guest in a vault that was already in use. Everything outside `wiki/` belongs
+to its owner and is read-only to the agent.
+
+Follow the links, watch the graph, check [[dashboard]].
 
 ## Current state
 

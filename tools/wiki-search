@@ -19,8 +19,21 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = Path(__file__).resolve().parent / "wiki.config.json"
 WORD = re.compile(r"[a-z0-9][a-z0-9'-]*")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+
+
+def load_config():
+    """Vault layout. Absent or unreadable config falls back to the standalone layout."""
+    defaults = {"wiki_dir": "wiki", "raw_dirs": ["raw"]}
+    try:
+        return {**defaults, **json.loads(CONFIG_PATH.read_text(encoding="utf-8"))}
+    except FileNotFoundError:
+        return defaults
+    except (OSError, ValueError) as exc:
+        print(f"warning: {CONFIG_PATH.name} unreadable ({exc}); using defaults", file=sys.stderr)
+        return defaults
 
 # BM25 parameters: k1 controls term-frequency saturation, b the length normalization.
 K1, B = 1.5, 0.75
@@ -45,12 +58,14 @@ def parse_frontmatter(text):
     return meta, text[match.end():]
 
 
-def load(directory, exclude=("templates",)):
+def load(directories, exclude=("templates",)):
     docs = []
-    for path in sorted(directory.rglob("*.md")):
+    seen = set()
+    for path in sorted(p for directory in directories for p in directory.rglob("*.md")):
         rel = path.relative_to(ROOT)
-        if any(part in exclude for part in rel.parts):
+        if any(part in exclude for part in rel.parts) or path in seen:
             continue
+        seen.add(path)
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
@@ -124,11 +139,18 @@ def main():
     args = parser.parse_args()
 
     query = " ".join(args.query)
-    directory = ROOT / ("raw" if args.raw else "wiki")
-    if not directory.is_dir():
-        sys.exit(f"error: {directory.relative_to(ROOT)}/ not found")
+    config = load_config()
+    names = config["raw_dirs"] if args.raw else [config["wiki_dir"]]
+    directories = [ROOT / name for name in names]
+    present = [directory for directory in directories if directory.is_dir()]
+    if not present:
+        layer = "raw" if args.raw else "wiki"
+        sys.exit(
+            f"error: no {layer} directory found. Looked for: {', '.join(names)}. "
+            f"Set the paths in tools/{CONFIG_PATH.name}."
+        )
 
-    docs = load(directory)
+    docs = load(present)
     if args.type:
         docs = [doc for doc in docs if doc["type"] == args.type]
 
@@ -150,7 +172,8 @@ def main():
         return
 
     if not results:
-        print(f"No matches for {query!r} in {directory.relative_to(ROOT)}/")
+        searched = ", ".join(str(directory.relative_to(ROOT)) for directory in present)
+        print(f"No matches for {query!r} in {searched}")
         return
 
     for score, doc in results:

@@ -1,0 +1,14 @@
+{
+  "_comment": "Paths are relative to the vault root (the directory holding tools/). Edit raw_dirs to match the folders you actually capture into.",
+  "wiki_dir": "wiki",
+  "raw_dirs": ["Clippings", "Daily Notes", "raw"],
+  "orphan_exempt": [
+    "index",
+    "log",
+    "overview",
+    "dashboard",
+    "synthesis",
+    "open-questions",
+    "contradictions"
+  ]
+}
