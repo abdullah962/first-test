@@ -1,4 +1,9 @@
 .DS_Store
-.obsidian/
 __pycache__/
 *.pyc
+
+# Obsidian per-machine state, if this repo is ever opened as a vault itself
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.trash/

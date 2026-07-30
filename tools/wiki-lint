@@ -20,8 +20,24 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WIKI = ROOT / "wiki"
-RAW = ROOT / "raw"
+CONFIG_PATH = Path(__file__).resolve().parent / "wiki.config.json"
+
+
+def load_config():
+    """Vault layout. Absent or unreadable config falls back to the standalone layout."""
+    defaults = {"wiki_dir": "wiki", "raw_dirs": ["raw"], "orphan_exempt": []}
+    try:
+        return {**defaults, **json.loads(CONFIG_PATH.read_text(encoding="utf-8"))}
+    except FileNotFoundError:
+        return defaults
+    except (OSError, ValueError) as exc:
+        print(f"warning: {CONFIG_PATH.name} unreadable ({exc}); using defaults", file=sys.stderr)
+        return defaults
+
+
+CONFIG = load_config()
+WIKI = ROOT / CONFIG["wiki_dir"]
+RAW_DIRS = [ROOT / name for name in CONFIG["raw_dirs"]]
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]")
@@ -32,12 +48,30 @@ DATE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
 PLACEHOLDER = re.compile(r"\b(TODO|FIXME|TBD|XXX)\b")
 
 REQUIRED_KEYS = ["title", "type", "created", "updated", "status"]
-VALID_TYPES = {"source", "entity", "concept", "analysis", "meta"}
 VALID_STATUS = {"stub", "developing", "mature"}
+VALID_STATE = {"active", "paused", "done", "abandoned"}
+# A page's folder determines its type; pages directly in wiki/ are meta.
+FOLDER_TYPE = {
+    "sources": "source",
+    "people": "person",
+    "areas": "area",
+    "projects": "project",
+    "concepts": "concept",
+    "entities": "entity",
+    "analysis": "analysis",
+}
+VALID_TYPES = set(FOLDER_TYPE.values()) | {"meta"}
 # Hubs and registers are linked from everywhere or nowhere by design.
-ORPHAN_EXEMPT = {"index", "log", "overview", "synthesis", "open-questions", "contradictions"}
+ORPHAN_EXEMPT = set(CONFIG["orphan_exempt"]) | {
+    "index", "log", "overview", "dashboard", "synthesis", "open-questions", "contradictions",
+}
 RAW_SKIP_NAMES = {"README.md"}
 RAW_SKIP_DIRS = {"assets"}
+
+
+def slugify(name):
+    """Filename -> wiki slug, matching the kebab-case convention in CLAUDE.md section 3."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def parse_frontmatter(text):
@@ -112,6 +146,28 @@ def check(pages, problems):
             page_type = meta.get("type")
             if page_type and page_type not in VALID_TYPES:
                 report("error", rel, f"invalid type '{page_type}' (expected {'/'.join(sorted(VALID_TYPES))})")
+            elif page_type:
+                parts = Path(rel).parts
+                folder = parts[1] if len(parts) > 2 else None
+                expected = "meta" if folder is None else FOLDER_TYPE.get(folder)
+                if expected is None:
+                    report("warn", rel, f"'{folder}/' is not a known category — add it to FOLDER_TYPE or refile")
+                elif page_type != expected:
+                    report("error", rel, f"type '{page_type}' does not match folder (expected '{expected}')")
+
+            if meta.get("type") == "project":
+                state = meta.get("state")
+                if not state:
+                    report("error", rel, "project missing 'state' (active/paused/done/abandoned)")
+                elif state not in VALID_STATE:
+                    report("error", rel, f"invalid state '{state}' (expected {'/'.join(sorted(VALID_STATE))})")
+                if not meta.get("area"):
+                    report("warn", rel, "project has no 'area' — it belongs to one")
+                elif meta["area"] not in by_slug:
+                    report("error", rel, f"project area '{meta['area']}' has no page")
+
+            if meta.get("last_contact") and not DATE.match(meta["last_contact"]):
+                report("error", rel, f"'last_contact: {meta['last_contact']}' is not YYYY-MM-DD")
             status = meta.get("status")
             if status and status not in VALID_STATUS:
                 report("error", rel, f"invalid status '{status}' (expected {'/'.join(sorted(VALID_STATUS))})")
@@ -127,10 +183,18 @@ def check(pages, problems):
 
             if page_type == "source":
                 raw_path = meta.get("source_path")
+                parts = Path(raw_path).parts if raw_path else ()
                 if not raw_path:
                     report("error", rel, "source page missing 'source_path'")
-                elif not (ROOT / raw_path).exists():
+                elif (ROOT / raw_path).exists():
+                    pass
+                elif parts and (ROOT / parts[0]).is_dir():
+                    # The capture folder is here, so the file really is missing.
                     report("error", rel, f"source_path '{raw_path}' does not exist")
+                else:
+                    # Whole capture folder absent — normal when the wiki is checked out
+                    # away from the vault that holds the raw material.
+                    report("info", rel, f"source_path '{raw_path}' not present in this checkout")
 
         for target in page["links"]:
             target = target.strip()
@@ -159,8 +223,10 @@ def check(pages, problems):
     if not (WIKI / "log.md").exists():
         report("error", "wiki/log.md", "log is missing")
 
-    if RAW.is_dir():
-        for path in sorted(RAW.rglob("*")):
+    for raw_dir in RAW_DIRS:
+        if not raw_dir.is_dir():
+            continue
+        for path in sorted(raw_dir.rglob("*")):
             rel = path.relative_to(ROOT)
             if (
                 not path.is_file()
@@ -169,8 +235,22 @@ def check(pages, problems):
                 or set(rel.parts) & RAW_SKIP_DIRS
             ):
                 continue
-            if path.stem not in source_slugs:
-                report("info", str(rel), "raw source not ingested: no page in wiki/sources/")
+            if slugify(path.stem) not in source_slugs:
+                report("info", str(rel), "captured but not ingested: no page in wiki/sources/")
+
+    # Wiki slugs must be unique across the whole vault, not just within wiki/ —
+    # Obsidian resolves [[shortest-path]] links by filename, so a same-named note
+    # elsewhere in the vault makes every link to that slug ambiguous.
+    for path in sorted(ROOT.rglob("*.md")):
+        rel = path.relative_to(ROOT)
+        if rel.parts[0] in {Path(CONFIG["wiki_dir"]).parts[0], ".git", ".obsidian"} or path.name in RAW_SKIP_NAMES:
+            continue
+        if path.stem in by_slug:
+            report(
+                "warn",
+                str(rel),
+                f"name collides with wiki page '{path.stem}' — [[{path.stem}]] links are ambiguous",
+            )
 
 
 def main():

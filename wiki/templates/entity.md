@@ -22,9 +22,11 @@ said separately. Cite as you go: `([[source-slug]])`.
 
 | | |
 |---|---|
-| Type | person / organization / place / product / character |
+| Kind | organization / place / tool / product / book |
 | First seen in | [[source-slug]] |
 | | |
+
+People get their own page type — use `wiki/templates/person.md` instead.
 
 ## Relations
 

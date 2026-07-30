@@ -1,74 +1,104 @@
-# Persistent Wiki
+# Second Brain
 
-A knowledge base that an LLM builds and maintains for you.
+An LLM-maintained knowledge base that drops into an Obsidian vault you already use.
 
-Most LLM-plus-documents setups are RAG: you upload files, the model retrieves chunks at
-query time, and rediscovers the same connections on every question. Nothing accumulates.
-This repo does the opposite. When a source arrives, the agent reads it and **integrates**
-it — updating entity pages, revising the synthesis, flagging where new data contradicts
-old claims, maintaining cross-references. Knowledge is compiled once and kept current.
+Most LLM-plus-notes setups are RAG: you upload files, the model retrieves chunks at query
+time, and rediscovers the same connections on every question. Nothing accumulates. This
+does the opposite. When you clip an article or write an entry, the agent reads it and
+**integrates** it — updating the pages for the people, areas, and projects it touches,
+revising the current picture, recording where your position moved. Knowledge is compiled
+once and kept current.
 
-The cross-references are already there. The contradictions have already been flagged. The
-synthesis already reflects everything read so far.
+The cross-references are already there. The changes of mind have already been logged. The
+synthesis already reflects everything you have read.
 
-## Layout
+## Installing
+
+Copy three things into your vault root:
 
 ```
 CLAUDE.md     the schema — how the wiki is structured and how the agent maintains it
-raw/          your source documents. Immutable: the agent reads, never writes
-wiki/         the agent's output. Markdown pages, interlinked. You read, it writes
-tools/        wiki-search (BM25 over the wiki) and wiki-lint (structural health check)
+wiki/         the agent's output. Markdown, interlinked. You read, it writes
+tools/        wiki-search (BM25), wiki-lint (structural health check), wiki.config.json
 ```
 
-`wiki/` holds six meta pages that stay for the life of the wiki — [index](wiki/index.md)
-(catalog), [log](wiki/log.md) (chronology), [overview](wiki/overview.md),
-[synthesis](wiki/synthesis.md), [open questions](wiki/open-questions.md), and
-[contradictions](wiki/contradictions.md) — plus category folders for sources, entities,
-concepts, and filed analyses.
+Then edit `tools/wiki.config.json` so `raw_dirs` names the folders you actually capture
+into:
+
+```json
+{ "wiki_dir": "wiki", "raw_dirs": ["Clippings", "Daily Notes"] }
+```
+
+That is the whole install. Full guide, including the Obsidian settings worth checking:
+[docs/obsidian-setup.md](docs/obsidian-setup.md).
+
+**No `.obsidian/` folder ships with this package** — yours already exists, and overwriting
+it would destroy your settings and plugin config.
+
+## The ownership rule
+
+The agent writes inside `wiki/` and nowhere else. Your notes, your clippings, your daily
+entries, your folder conventions — all read-only to it. It reads widely and writes
+narrowly. A wiki page that needs a rename gets renamed; one of your notes never does.
+
+## Layout inside `wiki/`
+
+Seven meta pages that stay for the life of the vault — [index](wiki/index.md) (catalog),
+[dashboard](wiki/dashboard.md) (live Dataview views), [synthesis](wiki/synthesis.md),
+[open questions](wiki/open-questions.md), [contradictions](wiki/contradictions.md),
+[overview](wiki/overview.md), [log](wiki/log.md) — plus category folders:
+
+| Folder | Holds |
+|---|---|
+| `sources/` | one page per ingested item — entry, article, episode, conversation |
+| `people/` | people in your life |
+| `areas/` | standing domains with no finish line: health, career, money |
+| `projects/` | efforts with a defined outcome and an end |
+| `concepts/` | ideas, mental models, frameworks |
+| `entities/` | other concrete things: organizations, places, tools, books |
+| `analysis/` | filed answers: patterns, comparisons, deep dives |
 
 ## Using it
 
-**Ingest.** Drop a file in `raw/` and ask the agent to process it. It reads the source,
-talks through the takeaways with you, writes a summary page, propagates the new
-information across every page it touches, and appends to the log. A substantive source
-normally touches 5–15 pages.
+**Ingest.** Capture the way you already do, then ask the agent to process what you
+captured. It reads, talks through the takeaways, writes a source page, and propagates the
+new information everywhere it belongs. Four sentences about a rough week at work can touch
+five pages. The capture itself never moves.
 
 **Query.** Ask questions. The agent reads the index, drills into the relevant pages, and
-answers with citations. Good answers get filed back into `wiki/analysis/` so your
-explorations compound the same way ingested sources do.
+answers with citations. The questions worth asking are the temporal ones — *how has my
+thinking on this changed?*, *what shows up before a bad stretch?* — because those are the
+ones you cannot answer from memory. Good answers get filed to `wiki/analysis/`.
 
-**Lint.** Ask for a health check periodically. `tools/wiki-lint` catches broken links,
-orphan pages, index drift, and un-ingested sources; the agent does the judgment pass —
-contradictions, stale claims, missing pages, gaps worth a new source.
+**Lint.** Ask for a health check periodically.
 
 ```bash
-tools/wiki-search "associative trails"   # ranked search over the wiki
-tools/wiki-lint                          # structural health check
+tools/wiki-search "sleep debt"   # ranked search over the wiki
+tools/wiki-search "sleep" --raw  # search your capture folders instead
+tools/wiki-lint                  # structural health check
 ```
 
-Both are dependency-free Python 3.
+`wiki-lint` catches broken links, orphans, index drift, type/folder mismatches, captures
+you have not ingested, and name collisions between wiki pages and your existing notes. The
+agent does the judgment pass — stale pages, unflagged changes of position, patterns worth
+naming. Both scripts are dependency-free Python 3.
 
-## Reading the wiki
+## Two design choices worth knowing
 
-It is plain markdown with Obsidian-style `[[wikilinks]]`, so it works in any editor. Point
-Obsidian at this directory and you get backlinks, graph view, and live preview — the
-intended way to browse: the agent edits on one side, you follow links and watch the graph
-fill in on the other. It is also just a git repo, so you get version history and diffs of
-how the synthesis changed over time.
+**Facts about a person expire**, so pages describe the present and are rewritten rather
+than appended to. What changed moves to a dated *How this changed* section. Watching your
+own positions move over years is the thing this gives you that a pile of notes cannot.
 
-## Making it yours
-
-`CLAUDE.md` is the configuration that turns a generic chatbot into a disciplined wiki
-maintainer. It ships domain-neutral. Once you know what you are building — a research
-wiki, a companion wiki for a book, a personal knowledge base, a competitive-analysis
-file — adjust it: rename the category folders (`characters/`, `companies/`, `chapters/`),
-add fields to the frontmatter, change what an ingest should touch. It is meant to be
-co-evolved with the agent as you learn what works for your domain.
+**One entry is a datapoint, not a pattern.** An entry written at 2am after a bad day is
+evidence about that night. The agent will not promote it into a standing claim about you —
+a pattern needs three or more dated instances, cited. It surfaces patterns; it does not
+diagnose.
 
 ## Division of labor
 
-You curate sources, direct the analysis, and ask good questions. The agent does everything
+You live the life, capture the material, and ask the questions. The agent does everything
 else — the summarizing, cross-referencing, filing, and bookkeeping.
 
-Humans abandon wikis because maintenance grows faster than value. That is the only reason
-this pattern is new: the bookkeeping was always the bottleneck, and it no longer is.
+Humans abandon their second brains because maintenance grows faster than value. That is
+the only reason this pattern is new: the bookkeeping was always the bottleneck, and it no
+longer is.

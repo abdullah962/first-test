@@ -1,11 +1,13 @@
-# Wiki Schema
+# Wiki Schema — Second Brain
 
-This repository is a **persistent wiki**: a knowledge base that you (the LLM) build and
-maintain from a curated collection of raw sources. Knowledge is compiled once, on ingest,
-and then kept current — not re-derived from scratch on every question.
+This is a **persistent personal wiki**: a knowledge base about one person's life, work, and
+thinking, built and maintained by you (the LLM) from the material in their Obsidian vault.
+Knowledge is compiled once, on ingest, and then kept current — not re-derived from scratch
+on every question.
 
-You own the `wiki/` directory entirely. The human owns `raw/`. Read this file at the start
-of every session before touching anything.
+**The wiki lives inside an existing vault that the human already uses.** That vault holds
+years of their own notes, clippings, and daily entries. You are a guest in it. Read this
+file at the start of every session before touching anything.
 
 ---
 
@@ -13,119 +15,197 @@ of every session before touching anything.
 
 | Layer | Path | Who writes it | Rules |
 |---|---|---|---|
-| Raw sources | `raw/` | Human | **Immutable.** Read only. Never edit, rename, move, or delete. |
-| Wiki | `wiki/` | You | You create, update, cross-reference, and reorganize freely. |
+| The vault | everything outside `wiki/` | Human | **Read-only to you.** Never create, edit, rename, move, or delete anything here. |
+| Capture folders | `Clippings/`, `Daily Notes/`, … | Human | The raw material you ingest. Read-only like the rest of the vault. |
+| Wiki | `wiki/` | You | Yours entirely. Create, update, cross-reference, and reorganize freely. |
 | Schema | `CLAUDE.md` | Both | Co-evolved. Propose changes; the human approves. |
 
-The human curates sources, directs analysis, and asks questions. You do the summarizing,
-cross-referencing, filing, and bookkeeping.
+> [!danger] You write inside `wiki/` and nowhere else.
+> Everything else in the vault is the human's own work — notes they wrote by hand, notes
+> with their own conventions, notes you have never read. A helpful-looking cleanup outside
+> `wiki/` destroys work you cannot restore and did not understand. If something outside
+> `wiki/` needs changing, say so and let them do it.
+
+Which folders count as capture folders is set in `tools/wiki.config.json` (`raw_dirs`).
+Update it when the human adds a new one; the tools read it.
+
+The human lives the life, captures the material, and asks the questions. You do the
+summarizing, cross-referencing, filing, and bookkeeping.
+
+**This is personal material.** Journal entries, health, finances, relationships, notes on
+named people who did not consent to being written about. Treat every page as private by
+default. Never copy `raw/` or `wiki/` content into an external service, a public artifact,
+or a commit message. If you are ever asked to publish, share, or summarize this wiki
+outward, confirm first — every time.
 
 ---
 
 ## 2. Wiki layout
 
+Inside the vault, everything you own sits under one folder:
+
+```
+<vault>/
+  Clippings/          the human's captures — read-only
+  Daily Notes/        the human's entries — read-only
+  …their own notes…   read-only
+  CLAUDE.md           this file
+  tools/              wiki-search, wiki-lint, wiki.config.json
+  wiki/               yours
+```
+
 ```
 wiki/
   index.md            catalog of every page (content-oriented)
   log.md              append-only chronological record
-  overview.md         entry point: what this wiki is about, current state
-  synthesis.md        the evolving thesis — what the sources add up to
-  open-questions.md   unresolved questions, gaps, things to look for
-  contradictions.md   register of conflicts between sources
-  sources/            one page per ingested raw source
-  entities/           people, orgs, products, places, characters — concrete things
-  concepts/           ideas, mechanisms, themes, methods — abstract things
-  analysis/           filed answers to queries: comparisons, deep dives, arguments
+  overview.md         entry point: what this wiki holds, current state
+  dashboard.md        live Dataview queries — what needs attention
+  synthesis.md        the current picture: what it all adds up to right now
+  open-questions.md   unresolved questions about yourself, gaps, things to watch
+  contradictions.md   register of conflicts between sources AND changes of mind
+  sources/            one page per ingested item — article, entry, episode, conversation
+  people/             people in your life
+  areas/              ongoing life domains with no end date: health, career, money
+  projects/           efforts with a defined outcome and an end
+  concepts/           ideas, mental models, methods, frameworks
+  entities/           other concrete things: organizations, places, tools, products
+  analysis/           filed answers to queries: patterns, comparisons, deep dives
   templates/          page templates to copy when creating new pages
 ```
 
-`sources/`, `entities/`, `concepts/`, `analysis/` are the defaults. Add or rename
-categories when the domain calls for it (`characters/`, `companies/`, `chapters/`,
-`experiments/`) — then update this file and `index.md` to match.
+**Areas vs. projects** is the distinction that keeps this from turning to mush. An area is
+a standing responsibility you never finish — `areas/health`, `areas/career`. A project has
+a finish line — `projects/learn-arabic-calligraphy`. Projects belong to an area; say so in
+frontmatter (`area: health`). When a project ends, set `state: done` and fold what it
+taught you back into its area page. Do not delete it.
+
+Add or rename categories when your life calls for it — then update this file and
+`index.md` to match.
 
 ---
 
 ## 3. Page conventions
 
-**Filenames** are kebab-case slugs: `wiki/entities/vannevar-bush.md`. One topic per page.
+**Filenames** are kebab-case slugs: `wiki/people/samir-haddad.md`. One topic per page.
 Slugs are stable — if a page must be renamed, update every inbound link in the same pass.
+
+**Slugs must be unique across the entire vault, not just across `wiki/`.** Obsidian
+resolves `[[shortest-path]]` links by filename, so a wiki page named the same as one of
+the human's own notes makes every link to it ambiguous, and Obsidian will silently pick
+one. `tools/wiki-lint` flags collisions. When one appears, rename **your** page — never
+theirs — to something more specific and update the inbound links.
 
 **Frontmatter** is required on every page:
 
 ```yaml
 ---
-title: Vannevar Bush
-type: entity          # source | entity | concept | analysis | meta
-tags: [memex, information-science]
+title: Sleep
+type: area              # source | person | area | project | concept | entity | analysis | meta
+tags: [health, energy]
 created: 2026-07-30
 updated: 2026-07-30
-sources: [as-we-may-think]   # slugs of wiki/sources/ pages backing this page
-status: stub          # stub | developing | mature
+sources: [2026-07-14, huberman-sleep-toolkit]   # slugs of wiki/sources/ pages backing this
+status: developing      # stub | developing | mature
 ---
 ```
 
-Source pages add: `source_path`, `source_type`, `author`, `source_date`, `ingested`.
+Per-type additions:
+
+| Type | Adds |
+|---|---|
+| `source` | `source_path`, `source_type`, `author`, `source_date`, `ingested` |
+| `project` | `state` (`active` / `paused` / `done` / `abandoned`), `area` |
+| `person` | `relationship` (how you know them), optional `last_contact` |
 
 `status` means: **stub** = placeholder, one or two facts; **developing** = real content,
-known gaps; **mature** = well-covered, would only change if a source contradicts it.
+known gaps; **mature** = well-covered, would only change on new information.
 
-**Links** are Obsidian wikilinks by slug, no path and no extension:
-`[[vannevar-bush]]` or `[[vannevar-bush|Bush]]`. Slugs are unique across the whole wiki,
-so links resolve regardless of folder. Link generously — the cross-reference graph is the
-point. Every claim traceable to a source cites it: `([[as-we-may-think]])`.
+**The frontmatter is load-bearing.** `wiki/dashboard.md` runs Dataview queries over these
+fields — stale areas, stub pages that matter, single-source claims, orphans. Sloppy
+frontmatter silently empties the dashboard, so fill every field on every page.
 
-**Never link to a page you have not created.** If a concept deserves a page you are not
+**Links** are Obsidian wikilinks by slug, no path and no extension: `[[samir-haddad]]` or
+`[[samir-haddad|Samir]]`. Slugs are unique across the whole wiki, so links resolve
+regardless of folder. Link generously — the cross-reference graph is the point, and it is
+what the graph view shows. Every claim traceable to a source cites it: `([[2026-07-14]])`.
+
+**Never link to a page you have not created.** If something deserves a page you are not
 writing yet, create a stub with frontmatter and a one-line definition rather than leaving
 a dangling link.
 
-**Contradictions** are flagged inline where they occur:
+**Callouts** render natively in Obsidian — use them:
 
 ```markdown
-> [!warning] Contradiction
-> [[source-a]] says X (p. 12); [[source-b]] says not-X (2024 data, more recent).
-> Unresolved — see [[contradictions]].
+> [!warning] Changed position
+> Until 2026-03 the working theory was X ([[2026-01-08]]). [[2026-06-20]] contradicts it.
+> See [[contradictions]].
 ```
 
-and registered as a row in `wiki/contradictions.md`.
+---
 
-**Uncertainty is marked, not smoothed over.** Distinguish what a source claims from what
-is established. Attribute contested claims to their source. Do not average conflicting
-numbers into a fake consensus.
+## 4. Time and change
+
+This is the part a personal wiki gets wrong most often, and the part worth getting right.
+
+**Facts about a person expire.** Jobs, goals, opinions, weight, who you are close to. A
+wiki that only accumulates becomes a pile of stale claims stated in the present tense.
+
+- Every page's main body describes **the present**. Rewrite it; do not append to it.
+- When something changes, the old version does not vanish — it moves to a **How this
+  changed** section, dated, one line: `2026-03 → 2026-07: stopped wanting the management
+  track; see [[2026-06-20]].` Being able to watch your own positions move over years is
+  the single most valuable thing this wiki can give you.
+- Register genuine reversals in [[contradictions]] as `changed` — same register as source
+  conflicts, different kind.
+
+**One entry is a datapoint, not a pattern.** A journal entry written at 2am after a bad
+day is evidence about that night, not about the person. Do not promote a single bad mood
+into a standing claim on a person page. Say "wrote on [[2026-07-14]] that…" until the
+thing recurs; call it a pattern only when you can cite three or more instances across
+time, and cite them.
+
+**Record and connect; do not diagnose.** Surface the pattern — "sleep under 6h shows up in
+four of the five entries before a stalled week" — and let the human draw the conclusion.
+No clinical labels, no psychoanalysis, no advice unless asked.
 
 ---
 
-## 4. Operation: Ingest
+## 5. Operation: Ingest
 
-Trigger: the human drops a file in `raw/` and asks you to process it.
+Trigger: the human clips an article, writes a daily note, or otherwise adds material to a
+capture folder, and asks you to process it.
 
-1. **Read the source fully.** If it references local images (`raw/assets/`), read the text
-   first, then view the images that matter — you cannot do both in one pass.
+1. **Read the source fully.** If it references local images, read the text first, then view
+   the images that matter — you cannot do both in one pass. The clipping stays exactly
+   where it is; you never move it into `wiki/`.
 2. **Discuss key takeaways** with the human before writing, unless they asked for an
-   unsupervised batch ingest. Surface anything surprising or contradictory early.
-3. **Write `wiki/sources/<slug>.md`** from `wiki/templates/source.md`: citation metadata,
-   a summary proportional to the source's density, key claims with locators (page,
-   section, timestamp), notable quotes, and how it relates to what is already in the wiki.
-4. **Propagate.** This is the part that makes the wiki worth having. For each entity and
-   concept the source touches:
-   - update the existing page with the new information, or create it if missing;
+   unsupervised batch ingest. Surface anything surprising early.
+3. **Write `wiki/sources/<slug>.md`** from `wiki/templates/source.md`. Slugify the capture's
+   filename — `Clippings/Effective Context Engineering.md` becomes
+   `wiki/sources/effective-context-engineering.md` — and record the original vault-relative
+   path in `source_path`. Daily notes use the date as the slug: `wiki/sources/2026-07-14.md`.
+4. **Propagate.** This is the part that makes the wiki worth having. For each person,
+   area, project, and concept the source touches:
+   - update the existing page's present-tense body, or create the page if missing;
    - add the source slug to that page's `sources:` frontmatter and bump `updated:`;
-   - add cross-links in both directions — the new page links out, and the pages it
-     relates to gain a link back;
-   - if the source contradicts or supersedes an existing claim, flag it (§3) and add a
-     row to `contradictions.md`. Do not silently overwrite the old claim.
-   A substantive source normally touches 5–15 pages. If you touched only the source page,
-   you did not ingest it — you filed it.
+   - add cross-links in both directions;
+   - if it changes a standing claim, follow §4 — move the old version to *How this
+     changed*, do not silently overwrite it.
+
+   A journal entry about a rough week at work might touch `areas/career`,
+   `projects/q3-migration`, `people/your-manager`, `areas/sleep`, and `concepts/burnout`
+   — five pages from four sentences. If you touched only the source page, you did not
+   ingest it, you filed it.
 5. **Revise `synthesis.md`** if the source shifts the overall picture. Say what changed.
-6. **Update `open-questions.md`**: resolve questions the source answered, add new ones.
+6. **Update `open-questions.md`**: resolve what the source answered, add what it opened.
 7. **Update `index.md`** with new pages and changed one-line summaries.
-8. **Append to `log.md`** (§6).
+8. **Append to `log.md`** (§8).
 9. **Run `tools/wiki-lint`** and fix what it reports.
-10. **Report** to the human: pages created, pages updated, contradictions found, questions
-    opened or closed.
+10. **Report**: pages created, pages updated, positions changed, questions opened or closed.
 
 ---
 
-## 5. Operation: Query
+## 6. Operation: Query
 
 Trigger: the human asks a question.
 
@@ -134,58 +214,61 @@ Trigger: the human asks a question.
 2. **Answer from the wiki.** Go back to `raw/` only when a claim needs verification at the
    source or the wiki is thin on the subject — and when you do, note the gap.
 3. **Cite pages** with wikilinks so the human can follow the trail.
-4. **Say when the wiki cannot answer.** "No source in the collection covers this" is a
-   real, useful answer. Never fill a gap with general knowledge presented as if it came
-   from the sources — if you add outside context, label it as such.
-5. **File good answers back.** If the answer is a genuine piece of synthesis — a
-   comparison, an argument, a discovered connection — write it to `wiki/analysis/`, link
-   it from the relevant pages, add it to `index.md`, and log it. Explorations should
-   compound in the wiki, not disappear into chat history. Skip this for lookups and
-   trivial questions; ask if unsure.
-
-Output format follows the question: prose, a comparison table, a chart, a Marp deck. The
-filed page is markdown regardless.
+4. **Say when the wiki cannot answer.** "Nothing in your material covers this" is a real,
+   useful answer. Never fill a gap with general knowledge presented as if it came from
+   their own material — if you add outside context, label it plainly as outside context.
+5. **Temporal questions are the specialty.** "How has my thinking on X changed?", "what
+   shows up before a bad stretch?", "what did I say I wanted a year ago?" — answer these
+   from the *How this changed* sections, [[contradictions]], and dated source pages. Cite
+   dates, always.
+6. **File good answers back.** If the answer is genuine synthesis — a pattern, a
+   comparison, a discovered connection — write it to `wiki/analysis/`, link it from the
+   relevant pages, add it to `index.md`, and log it. Explorations should compound. Skip
+   this for lookups; ask if unsure.
 
 ---
 
-## 6. Operation: Lint
+## 7. Operation: Lint
 
 Trigger: the human asks for a health check, or you finish a batch of ingests.
 
 Run `tools/wiki-lint` for the mechanical checks (broken links, orphans, index drift,
-frontmatter, un-ingested sources). Then do the judgment pass the tool cannot:
+frontmatter, type/folder mismatches, un-ingested material). Open `wiki/dashboard.md` in
+Obsidian for the live views. Then do the judgment pass neither can:
 
-- **Contradictions** between pages that no one has flagged.
-- **Stale claims** a newer source has superseded.
-- **Missing pages** — concepts referenced repeatedly in prose with no page of their own.
+- **Stale pages** — an area untouched for months, a project still `active` that clearly is
+  not, a person page whose `last_contact` is a year old.
+- **Unflagged changes of position** — pages that still assert something a later entry
+  contradicts.
+- **Missing pages** — someone or something referenced repeatedly in prose with no page.
 - **Missing cross-references** — pages that clearly relate but do not link.
-- **Thin spots** — `stub` pages that matter, claims resting on a single source.
-- **Data gaps** worth a web search or a new source, plus specific suggestions for what
-  the human should read next.
+- **Thin spots** — claims resting on a single entry, `stub` pages that matter.
+- **Patterns worth naming** — recurring themes across entries that deserve a
+  `concepts/` page of their own. This is where the real value surfaces.
 
 Report findings and proposed fixes. Apply the mechanical ones; check before large
 restructures.
 
 ---
 
-## 7. index.md and log.md
+## 8. index.md and log.md
 
 **`index.md` is content-oriented** — a catalog, organized by category. Every page appears
-exactly once with a wikilink, a one-line summary, and its status. It is how you (and the
-human) navigate the wiki. Update it on every ingest and every filed analysis. A page that
-is not in the index is invisible.
+exactly once with a wikilink, a one-line summary, and its status. Update it on every
+ingest and every filed analysis. A page that is not in the index is invisible.
 
 **`log.md` is chronological** — append-only, newest at the bottom. Never rewrite history.
 Every entry starts with a machine-greppable header:
 
 ```markdown
-## [2026-07-30] ingest | As We May Think
+## [2026-07-30] ingest | Journal — 2026-07-14
 
-**Source:** `raw/as-we-may-think.md` → [[as-we-may-think]]
-**Created:** [[vannevar-bush]], [[memex]], [[associative-trails]]
-**Updated:** [[index]], [[synthesis]], [[open-questions]]
-**Notes:** First source on the pre-digital lineage. Opened the question of who maintains
-associative trails at scale.
+**Source:** `raw/journal/2026-07-14.md` → [[2026-07-14]]
+**Created:** [[q3-migration]], [[burnout]]
+**Updated:** [[career]], [[sleep]], [[index]], [[synthesis]]
+**Changed:** [[career]] — management track no longer a stated goal (was, as of 2026-01)
+**Notes:** Third entry in six weeks mentioning short sleep before a stalled work week.
+Not yet a named pattern; watch for a fourth.
 ```
 
 Types: `ingest`, `query`, `lint`, `schema`, `refactor`. `grep "^## \[" wiki/log.md | tail -5`
@@ -193,30 +276,39 @@ gives recent activity — check it at session start to see where things left off
 
 ---
 
-## 8. Tools
+## 9. Tools and Obsidian
 
 ```bash
-tools/wiki-search "associative trails"      # ranked search over wiki/ (BM25)
-tools/wiki-search "memex" --raw             # search raw sources instead
-tools/wiki-search "memex" -n 20 --context   # more hits, with matching lines
+tools/wiki-search "sleep debt"              # ranked search over wiki/ (BM25)
+tools/wiki-search "sleep" --raw             # search the capture folders instead
+tools/wiki-search "sleep" -n 20 --context   # more hits, with matching lines
+tools/wiki-search "burnout" --type area     # restrict to a page type
 tools/wiki-lint                             # structural health check
 tools/wiki-lint --json                      # machine-readable output
 ```
 
-Both are dependency-free Python 3. Extend them as the wiki grows; if search stops being
-good enough at scale, swap in a real engine (e.g. `qmd`) and update this section.
+Both are dependency-free Python 3 and read `tools/wiki.config.json` for the vault layout —
+which folder is the wiki, which folders hold captures. Keep that file current; it is the
+only place paths are hardcoded.
+
+`wiki/dashboard.md` needs the Dataview plugin. If you change a convention here that the
+dashboard queries depend on, update the queries in the same pass. Setup notes for the vault
+itself are in `docs/obsidian-setup.md` — settings the human applies, not files you write.
 
 ---
 
-## 9. Working rules
+## 10. Working rules
 
-- **Never modify `raw/`.** It is the source of truth.
-- **Never invent facts, citations, or page references.** Every substantive claim in the
-  wiki traces to a source page or is explicitly marked as your own inference.
-- **Prefer editing over appending.** Integrate new information into the existing prose;
-  a page that grows by accretion becomes unreadable. Rewrite sections when they get
-  tangled.
+- **Write inside `wiki/` and nowhere else.** §1. The rest of the vault is the human's, and
+  the captures are the record of what actually happened.
+- **Treat everything as private.** §1. Nothing leaves this repo without confirmation.
+- **Never invent facts, citations, or page references.** Every substantive claim traces to
+  a source page or is explicitly marked as your own inference.
+- **Prefer editing over appending.** Integrate new information into the existing prose.
+  A page that grows by accretion becomes unreadable.
 - **Bump `updated:` whenever you change a page.** Today's date, from the environment.
 - **Keep the log honest.** Log what you actually did, including partial work.
-- **Propose schema changes** when you notice a convention that is not working. This file
-  should improve as the wiki grows.
+- **Be direct.** This wiki is only useful if it says true things plainly. Do not soften a
+  pattern because it is unflattering, and do not sharpen one for effect.
+- **Propose schema changes** when a convention is not working. This file should improve as
+  the wiki grows.

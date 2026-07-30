@@ -10,31 +10,36 @@ status: stub
 
 # Synthesis
 
-What the sources add up to. This page is the wiki's evolving thesis — revised whenever a
-new source shifts the picture, not appended to. It should always read as a current
-position, not a changelog.
+What it all adds up to right now. This page is rewritten, not appended to — it should
+always read as a current picture, never as a changelog. The history lives in *Revision
+history* at the bottom and in each page's *How this changed* section.
 
 Distinguish clearly between:
 
-- **Well-supported** — multiple independent sources agree.
-- **Provisional** — one source, or an inference of your own, plausible but untested.
-- **Contested** — sources disagree; see [[contradictions]].
+- **Established** — recurs across many entries over time, three or more dated instances.
+- **Provisional** — visible in one or two entries, or an inference of your own. Say which.
+- **Contested** — the material points both ways, or a position recently moved. See
+  [[contradictions]].
 
-## Current thesis
+Follow `CLAUDE.md` §4 here especially: this page states things about a person, and a
+pattern named too early becomes a story they start living inside. Under-claim rather than
+over-claim, and cite dates for everything.
 
-*Nothing yet — no sources ingested.*
+## Current picture
 
-## Supporting lines of evidence
+*Nothing yet — no material ingested.*
 
-*None yet.*
+## What this rests on
+
+*The entries and sources doing the real work, and how much weight each carries.*
 
 ## What would change this view
 
-*List the observations or sources that would most move the thesis. This is what the human
-should go looking for next; keep it in sync with [[open-questions]].*
+*What observation would most move the picture. Keep in sync with [[open-questions]] — this
+is what to watch for in the next few weeks of entries.*
 
 ## Revision history
 
-Brief, one line per substantive change of position — enough to see how the view moved.
+One line per substantive change of position — enough to see how the view moved over time.
 
 - **2026-07-30** — Page created, empty.
