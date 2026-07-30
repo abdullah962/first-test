@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Structural health check for the wiki.
+
+Catches the mechanical problems: broken links, orphan pages, index drift, malformed
+frontmatter, sources sitting in raw/ that were never ingested. It cannot catch the ones
+that matter most — contradictions, stale claims, missing cross-references — those need a
+judgment pass (see CLAUDE.md section 6).
+
+    tools/wiki-lint
+    tools/wiki-lint --json
+
+Exit code is 1 if any error-level problem is found, 0 otherwise.
+"""
+
+import argparse
+import json
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+WIKI = ROOT / "wiki"
+RAW = ROOT / "raw"
+
+FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]")
+CODE_BLOCK = re.compile(r"```.*?```", re.DOTALL)
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+DATE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
+PLACEHOLDER = re.compile(r"\b(TODO|FIXME|TBD|XXX)\b")
+
+REQUIRED_KEYS = ["title", "type", "created", "updated", "status"]
+VALID_TYPES = {"source", "entity", "concept", "analysis", "meta"}
+VALID_STATUS = {"stub", "developing", "mature"}
+# Hubs and registers are linked from everywhere or nowhere by design.
+ORPHAN_EXEMPT = {"index", "log", "overview", "synthesis", "open-questions", "contradictions"}
+RAW_SKIP_NAMES = {"README.md"}
+RAW_SKIP_DIRS = {"assets"}
+
+
+def parse_frontmatter(text):
+    """Minimal YAML-ish frontmatter reader: flat `key: value` pairs only."""
+    match = FRONTMATTER.match(text)
+    if not match:
+        return None, text
+    meta = {}
+    for line in match.group(1).splitlines():
+        if line.startswith((" ", "\t", "#")) or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        meta[key.strip()] = value.strip().strip("\"'")
+    return meta, text[match.end():]
+
+
+def parse_list(value):
+    """Read a flow-style YAML list: `[a, b]` -> ['a', 'b']."""
+    value = (value or "").strip()
+    if not value.startswith("["):
+        return []
+    return [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
+
+
+def strip_code(text):
+    """Drop code and HTML comments — links and markers in there aren't live."""
+    return INLINE_CODE.sub(" ", CODE_BLOCK.sub(" ", HTML_COMMENT.sub(" ", text)))
+
+
+def load_pages():
+    pages = {}
+    for path in sorted(WIKI.rglob("*.md")):
+        rel = path.relative_to(ROOT)
+        if "templates" in rel.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        meta, body = parse_frontmatter(text)
+        pages[path] = {
+            "rel": str(rel),
+            "slug": path.stem,
+            "meta": meta,
+            "body": body,
+            "links": WIKILINK.findall(strip_code(body)),
+        }
+    return pages
+
+
+def check(pages, problems):
+    def report(level, page, message):
+        problems.append({"level": level, "page": page, "message": message})
+
+    by_slug = defaultdict(list)
+    for page in pages.values():
+        by_slug[page["slug"]].append(page["rel"])
+
+    for slug, paths in sorted(by_slug.items()):
+        if len(paths) > 1:
+            report("error", paths[0], f"duplicate slug '{slug}': links are ambiguous between {', '.join(paths)}")
+
+    source_slugs = {p["slug"] for p in pages.values() if (p["meta"] or {}).get("type") == "source"}
+    inbound = defaultdict(set)
+
+    for page in pages.values():
+        meta, rel = page["meta"], page["rel"]
+
+        if meta is None:
+            report("error", rel, "missing frontmatter block")
+        else:
+            for key in REQUIRED_KEYS:
+                if not meta.get(key):
+                    report("error", rel, f"frontmatter missing '{key}'")
+            page_type = meta.get("type")
+            if page_type and page_type not in VALID_TYPES:
+                report("error", rel, f"invalid type '{page_type}' (expected {'/'.join(sorted(VALID_TYPES))})")
+            status = meta.get("status")
+            if status and status not in VALID_STATUS:
+                report("error", rel, f"invalid status '{status}' (expected {'/'.join(sorted(VALID_STATUS))})")
+            for key in ("created", "updated"):
+                if meta.get(key) and not DATE.match(meta[key]):
+                    report("error", rel, f"'{key}: {meta[key]}' is not YYYY-MM-DD")
+            if meta.get("created") and meta.get("updated") and meta["updated"] < meta["created"]:
+                report("warn", rel, f"updated ({meta['updated']}) predates created ({meta['created']})")
+
+            for slug in parse_list(meta.get("sources")):
+                if slug not in source_slugs:
+                    report("error", rel, f"frontmatter cites source '{slug}' with no page in wiki/sources/")
+
+            if page_type == "source":
+                raw_path = meta.get("source_path")
+                if not raw_path:
+                    report("error", rel, "source page missing 'source_path'")
+                elif not (ROOT / raw_path).exists():
+                    report("error", rel, f"source_path '{raw_path}' does not exist")
+
+        for target in page["links"]:
+            target = target.strip()
+            if target not in by_slug:
+                report("error", rel, f"broken link [[{target}]]")
+            elif target != page["slug"]:
+                inbound[target].add(page["slug"])
+
+        found = sorted(set(PLACEHOLDER.findall(strip_code(page["body"]))))
+        if found:
+            report("warn", rel, f"unresolved placeholder: {', '.join(found)}")
+
+    for page in sorted(pages.values(), key=lambda p: p["rel"]):
+        if page["slug"] not in ORPHAN_EXEMPT and not inbound[page["slug"]]:
+            report("warn", page["rel"], "orphan: no other page links here")
+
+    index_path = WIKI / "index.md"
+    if index_path not in pages:
+        report("error", "wiki/index.md", "index is missing")
+    else:
+        indexed = {link.strip() for link in pages[index_path]["links"]}
+        for page in sorted(pages.values(), key=lambda p: p["rel"]):
+            if page["slug"] not in indexed:
+                report("warn", page["rel"], "not listed in index.md")
+
+    if not (WIKI / "log.md").exists():
+        report("error", "wiki/log.md", "log is missing")
+
+    if RAW.is_dir():
+        for path in sorted(RAW.rglob("*")):
+            rel = path.relative_to(ROOT)
+            if (
+                not path.is_file()
+                or path.name in RAW_SKIP_NAMES
+                or path.name.startswith(".")
+                or set(rel.parts) & RAW_SKIP_DIRS
+            ):
+                continue
+            if path.stem not in source_slugs:
+                report("info", str(rel), "raw source not ingested: no page in wiki/sources/")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Structural health check for the wiki.")
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    args = parser.parse_args()
+
+    if not WIKI.is_dir():
+        sys.exit("error: wiki/ not found")
+
+    pages = load_pages()
+    problems = []
+    check(pages, problems)
+
+    if args.json:
+        print(json.dumps({"pages": len(pages), "problems": problems}, indent=2))
+    else:
+        order = {"error": 0, "warn": 1, "info": 2}
+        for problem in sorted(problems, key=lambda p: (order[p["level"]], p["page"])):
+            print(f"{problem['level']:5}  {problem['page']}: {problem['message']}")
+        counts = {level: sum(1 for p in problems if p["level"] == level) for level in order}
+        tally = ", ".join(
+            f"{counts[level]} {noun}{'' if counts[level] == 1 else 's'}"
+            for level, noun in (("error", "error"), ("warn", "warning"), ("info", "note"))
+        )
+        print(f"\n{len(pages)} pages checked — {tally}")
+        if not problems:
+            print("Clean. Mechanical checks only — the judgment pass is still yours.")
+
+    return 1 if any(p["level"] == "error" for p in problems) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

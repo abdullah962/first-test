@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""Ranked full-text search over the wiki (or the raw sources).
+
+BM25 over markdown files, no dependencies. Good enough at the scale where index.md
+still works (~hundreds of pages); swap in a real engine when it isn't.
+
+    tools/wiki-search "associative trails"
+    tools/wiki-search "memex" --raw -n 20
+    tools/wiki-search "memex" --context
+    tools/wiki-search "trails" --type concept --json
+"""
+
+import argparse
+import json
+import math
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+WORD = re.compile(r"[a-z0-9][a-z0-9'-]*")
+FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+
+# BM25 parameters: k1 controls term-frequency saturation, b the length normalization.
+K1, B = 1.5, 0.75
+TITLE_BOOST = 3  # title terms count this many extra times
+
+
+def tokenize(text):
+    return WORD.findall(text.lower())
+
+
+def parse_frontmatter(text):
+    """Minimal YAML-ish frontmatter reader: flat `key: value` pairs only."""
+    match = FRONTMATTER.match(text)
+    if not match:
+        return {}, text
+    meta = {}
+    for line in match.group(1).splitlines():
+        if line.startswith((" ", "\t", "#")) or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        meta[key.strip()] = value.strip().strip("\"'")
+    return meta, text[match.end():]
+
+
+def load(directory, exclude=("templates",)):
+    docs = []
+    for path in sorted(directory.rglob("*.md")):
+        rel = path.relative_to(ROOT)
+        if any(part in exclude for part in rel.parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"warning: skipping {rel}: {exc}", file=sys.stderr)
+            continue
+        meta, body = parse_frontmatter(text)
+        title = meta.get("title") or path.stem
+        tokens = tokenize(body) + tokenize(title) * TITLE_BOOST
+        docs.append({
+            "path": rel,
+            "slug": path.stem,
+            "title": title,
+            "type": meta.get("type", ""),
+            "status": meta.get("status", ""),
+            "body": body,
+            "tf": Counter(tokens),
+            "length": len(tokens) or 1,
+        })
+    return docs
+
+
+def search(docs, query, limit):
+    terms = tokenize(query)
+    if not terms or not docs:
+        return []
+
+    n = len(docs)
+    avg_length = sum(doc["length"] for doc in docs) / n
+    doc_freq = Counter()
+    for term in set(terms):
+        doc_freq[term] = sum(1 for doc in docs if doc["tf"][term])
+
+    results = []
+    for doc in docs:
+        score = 0.0
+        for term in terms:
+            freq = doc["tf"][term]
+            if not freq:
+                continue
+            # BM25 IDF, floored at zero so terms in most documents can't score negative.
+            idf = max(0.0, math.log((n - doc_freq[term] + 0.5) / (doc_freq[term] + 0.5) + 1))
+            norm = K1 * (1 - B + B * doc["length"] / avg_length)
+            score += idf * freq * (K1 + 1) / (freq + norm)
+        if score > 0:
+            results.append((score, doc))
+
+    results.sort(key=lambda pair: (-pair[0], str(pair[1]["path"])))
+    return results[:limit]
+
+
+def matching_lines(doc, terms, limit=3):
+    wanted = set(terms)
+    lines = []
+    for line in doc["body"].splitlines():
+        stripped = line.strip()
+        if stripped and wanted & set(tokenize(stripped)):
+            lines.append(stripped[:200])
+            if len(lines) == limit:
+                break
+    return lines
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Ranked search over the wiki.")
+    parser.add_argument("query", nargs="+")
+    parser.add_argument("-n", "--limit", type=int, default=10, help="max results (default 10)")
+    parser.add_argument("--raw", action="store_true", help="search raw/ instead of wiki/")
+    parser.add_argument("--type", help="only pages with this frontmatter type")
+    parser.add_argument("--context", action="store_true", help="show matching lines")
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    args = parser.parse_args()
+
+    query = " ".join(args.query)
+    directory = ROOT / ("raw" if args.raw else "wiki")
+    if not directory.is_dir():
+        sys.exit(f"error: {directory.relative_to(ROOT)}/ not found")
+
+    docs = load(directory)
+    if args.type:
+        docs = [doc for doc in docs if doc["type"] == args.type]
+
+    terms = tokenize(query)
+    results = search(docs, query, args.limit)
+
+    if args.json:
+        print(json.dumps([
+            {
+                "path": str(doc["path"]),
+                "slug": doc["slug"],
+                "title": doc["title"],
+                "type": doc["type"],
+                "score": round(score, 3),
+                "lines": matching_lines(doc, terms),
+            }
+            for score, doc in results
+        ], indent=2))
+        return
+
+    if not results:
+        print(f"No matches for {query!r} in {directory.relative_to(ROOT)}/")
+        return
+
+    for score, doc in results:
+        label = f" [{doc['type']}]" if doc["type"] else ""
+        print(f"{score:6.2f}  {doc['title']}{label}")
+        print(f"        {doc['path']}  ([[{doc['slug']}]])")
+        if args.context:
+            for line in matching_lines(doc, terms):
+                print(f"        | {line}")
+        print()
+
+
+if __name__ == "__main__":
+    main()
