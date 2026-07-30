@@ -32,10 +32,23 @@ DATE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
 PLACEHOLDER = re.compile(r"\b(TODO|FIXME|TBD|XXX)\b")
 
 REQUIRED_KEYS = ["title", "type", "created", "updated", "status"]
-VALID_TYPES = {"source", "entity", "concept", "analysis", "meta"}
 VALID_STATUS = {"stub", "developing", "mature"}
+VALID_STATE = {"active", "paused", "done", "abandoned"}
+# A page's folder determines its type; pages directly in wiki/ are meta.
+FOLDER_TYPE = {
+    "sources": "source",
+    "people": "person",
+    "areas": "area",
+    "projects": "project",
+    "concepts": "concept",
+    "entities": "entity",
+    "analysis": "analysis",
+}
+VALID_TYPES = set(FOLDER_TYPE.values()) | {"meta"}
 # Hubs and registers are linked from everywhere or nowhere by design.
-ORPHAN_EXEMPT = {"index", "log", "overview", "synthesis", "open-questions", "contradictions"}
+ORPHAN_EXEMPT = {
+    "index", "log", "overview", "dashboard", "synthesis", "open-questions", "contradictions",
+}
 RAW_SKIP_NAMES = {"README.md"}
 RAW_SKIP_DIRS = {"assets"}
 
@@ -112,6 +125,28 @@ def check(pages, problems):
             page_type = meta.get("type")
             if page_type and page_type not in VALID_TYPES:
                 report("error", rel, f"invalid type '{page_type}' (expected {'/'.join(sorted(VALID_TYPES))})")
+            elif page_type:
+                parts = Path(rel).parts
+                folder = parts[1] if len(parts) > 2 else None
+                expected = "meta" if folder is None else FOLDER_TYPE.get(folder)
+                if expected is None:
+                    report("warn", rel, f"'{folder}/' is not a known category — add it to FOLDER_TYPE or refile")
+                elif page_type != expected:
+                    report("error", rel, f"type '{page_type}' does not match folder (expected '{expected}')")
+
+            if meta.get("type") == "project":
+                state = meta.get("state")
+                if not state:
+                    report("error", rel, "project missing 'state' (active/paused/done/abandoned)")
+                elif state not in VALID_STATE:
+                    report("error", rel, f"invalid state '{state}' (expected {'/'.join(sorted(VALID_STATE))})")
+                if not meta.get("area"):
+                    report("warn", rel, "project has no 'area' — it belongs to one")
+                elif meta["area"] not in by_slug:
+                    report("error", rel, f"project area '{meta['area']}' has no page")
+
+            if meta.get("last_contact") and not DATE.match(meta["last_contact"]):
+                report("error", rel, f"'last_contact: {meta['last_contact']}' is not YYYY-MM-DD")
             status = meta.get("status")
             if status and status not in VALID_STATUS:
                 report("error", rel, f"invalid status '{status}' (expected {'/'.join(sorted(VALID_STATUS))})")

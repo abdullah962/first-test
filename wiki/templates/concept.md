@@ -27,10 +27,22 @@ The mechanism, argument, or structure. Cite as you go: `([[source-slug]])`.
 
 - **[[other-concept]]** — how they relate: builds on, contrasts with, special case of.
 
+## Where it applies to me
+
+How this shows up in your own life, if it does — which areas, which patterns it explains,
+where it has been useful and where it has not. This is the section that makes a concept
+page worth having in a personal wiki rather than a bookmark.
+
 ## Disputes
 
 Where sources disagree about the concept — definition, scope, or validity. Register real
 conflicts in [[contradictions]].
+
+## How this changed
+
+Dated, one line each — how your understanding or estimate of this idea has moved.
+
+- `<YYYY-MM> → <YYYY-MM>`: what changed, and the source that shifted it.
 
 ## Open threads
 

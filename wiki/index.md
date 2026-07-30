@@ -10,33 +10,47 @@ status: developing
 
 # Index
 
-Catalog of every page in the wiki. Organized by category; each entry is a link, a one-line
-summary, and a status. Updated on every ingest and every filed analysis.
+Catalog of every page in the wiki. Each entry is a link, a one-line summary, and a status.
+Updated on every ingest and every filed analysis — a page that is not here is invisible.
 
-Chronological history lives in [[log]].
+For live views (stalled projects, untended areas, orphans) see [[dashboard]]. For
+chronological history see [[log]].
 
 ## Meta
 
 | Page | Summary | Status |
 |---|---|---|
-| [[overview]] | What this wiki covers and how to move around it | developing |
-| [[synthesis]] | The evolving thesis — what the sources add up to | stub |
-| [[open-questions]] | Unresolved questions and known gaps | developing |
-| [[contradictions]] | Register of conflicts between sources | developing |
+| [[overview]] | What this wiki holds and how to move around it | developing |
+| [[dashboard]] | Live Dataview views — what needs attention | developing |
+| [[synthesis]] | The current picture: what it all adds up to right now | stub |
+| [[open-questions]] | Unresolved questions and patterns being watched | developing |
+| [[contradictions]] | Source conflicts and changes of position | developing |
 | [[index]] | This page | developing |
 | [[log]] | Chronological record of ingests, queries, and lint passes | developing |
 
 ## Sources
 
-*No sources ingested yet.*
+*Nothing ingested yet.*
 
-<!-- | [[slug]] | Author, year — one-line summary | mature | -->
+<!-- | [[slug]] | journal / article — one-line summary | mature | -->
 
-## Entities
+## People
+
+*None yet.*
+
+## Areas
+
+*None yet.*
+
+## Projects
 
 *None yet.*
 
 ## Concepts
+
+*None yet.*
+
+## Entities
 
 *None yet.*
 

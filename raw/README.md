@@ -17,6 +17,19 @@ truth; everything in `wiki/` is derived from it and can be regenerated. Nothing 
 Keeping the original metadata in the file — title, author, URL, date — makes the source
 page more accurate. The Web Clipper does this automatically.
 
+## Journal
+
+`journal/` holds daily notes, one per day, named `YYYY-MM-DD.md`. Obsidian's Daily Notes
+plugin is configured to write here, so today's note is already in the raw layer and ready
+to ingest — no moving files around.
+
+Entries are immutable like everything else here. If you were wrong about something on
+Tuesday, you do not go back and fix Tuesday; the correction goes in a later entry and the
+agent records the change of position. That record is the point (`CLAUDE.md` §4) — it is
+the one thing memory reliably destroys.
+
+Write them however you write them. Fragments are fine.
+
 ## Images
 
 `assets/` holds images referenced by sources. In Obsidian, set Settings → Files and links →

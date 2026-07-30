@@ -30,3 +30,16 @@ Types: `ingest`, `query`, `lint`, `schema`, `refactor`.
 **Notes:** Empty scaffold, no sources ingested. Conventions defined in `CLAUDE.md`;
 category folders (`entities/`, `concepts/`) are defaults to be adjusted once the domain
 is known.
+
+## [2026-07-30] schema | Specialized as a second brain, wired to Obsidian
+
+**Created:** [[dashboard]], `people/`, `areas/`, `projects/`, `raw/journal/`,
+person/area/project templates, `.obsidian/` vault settings, `docs/obsidian-setup.md`
+**Updated:** `CLAUDE.md`, [[index]], [[overview]], [[synthesis]], [[open-questions]],
+[[contradictions]], source/concept/entity templates, `tools/wiki-lint`, `README.md`
+**Notes:** Domain fixed as personal knowledge management. Added §4 *Time and change* —
+present-tense pages, dated *How this changed* sections, and the rule that a pattern needs
+three dated instances before it is stated as one. [[contradictions]] now registers changes
+of position alongside source conflicts. Linter gained folder/type matching and project
+`state` validation. Repository is public and must be made private before real material
+lands in `raw/`.
